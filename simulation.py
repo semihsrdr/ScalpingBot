@@ -1,6 +1,7 @@
 import config
 import json
 import os
+from datetime import datetime
 from market import get_market_summary # To get prices
 from trade_logger import log_trade # Import the logger
 
@@ -14,6 +15,7 @@ class SimulatedPortfolio:
     def __init__(self):
         self.balance = config.SIMULATION_STARTING_BALANCE
         self.positions = {}
+        self.equity_history = []
         self._load_state()
 
     def _load_state(self):
@@ -23,16 +25,38 @@ class SimulatedPortfolio:
                     state = json.load(f)
                     self.balance = state.get('balance', config.SIMULATION_STARTING_BALANCE)
                     self.positions = state.get('positions', {})
+                    self.equity_history = state.get('equity_history', [])
                 print(f"[SIM] Loaded saved state from: {STATE_FILE}")
             except Exception as e:
                 print(f"[SIM] Could not read state file, starting fresh: {e}")
         else:
             print("[SIM] No state file, starting fresh.")
+            # Add the initial equity point when starting fresh
+            self.equity_history.append({
+                "timestamp": datetime.now().isoformat(),
+                "equity": self.balance
+            })
 
     def _save_state(self):
         try:
+            # Add a new data point to the history before saving
+            current_summary = self.get_portfolio_summary()
+            self.equity_history.append({
+                "timestamp": datetime.now().isoformat(),
+                "equity": current_summary['total_equity_usd']
+            })
+            
+            # Keep the history from getting too large
+            max_history_points = 1440 # Keep last 24 hours of 1-min data
+            if len(self.equity_history) > max_history_points:
+                self.equity_history = self.equity_history[-max_history_points:]
+
             with open(STATE_FILE, 'w') as f:
-                state = {'balance': self.balance, 'positions': self.positions}
+                state = {
+                    'balance': self.balance, 
+                    'positions': self.positions,
+                    'equity_history': self.equity_history
+                }
                 json.dump(state, f, indent=4)
         except Exception as e:
             print(f"[SIM] Error writing to state file: {e}")
@@ -45,6 +69,9 @@ class SimulatedPortfolio:
 
     def get_all_open_positions(self):
         return self.positions
+
+    def get_equity_history(self):
+        return self.equity_history
 
     def get_portfolio_summary(self):
         """
@@ -172,6 +199,8 @@ class SimulatedPortfolio:
         Iterates through open positions, updates current price and unrealized PnL.
         """
         if not self.positions:
+            # Still save state to record equity history even if no positions are open
+            self._save_state()
             return
         
         print("[SIM] Updating PnL for open positions...")
@@ -196,10 +225,10 @@ class SimulatedPortfolio:
             except Exception as e:
                 print(f"[SIM] Could not update PnL for {symbol}: {e}")
         
-        # Sadece en az 1 pozisyon güncellendiyse kaydet
+        # Save state regardless of whether positions were updated, to capture equity history
+        self._save_state()
         if updated_count > 0:
-            self._save_state()
             print(f"[SIM] PnL update complete. Updated {updated_count}/{len(symbols_to_update)} positions.")
         else:
-            print("[SIM] No positions were updated. State not saved.")
+            print("[SIM] No positions were updated, but state saved for equity tracking.")
 
