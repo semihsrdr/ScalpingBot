@@ -4,17 +4,16 @@ from dotenv import load_dotenv
 # .env dosyasındaki değişkenleri yükle
 load_dotenv()
 
-# Groq Ayarları
-# Ortamdaki GROQ_API_KEY, GROQ_API_KEY1, GROQ_API_KEY2 vb. tüm anahtarları bulup bir listeye atar.
-GROQ_API_KEYS = [
-    key for key_name, key in os.environ.items() 
-    if key_name.startswith("GROQ_API_KEY") and key
-]
-if not GROQ_API_KEYS:
-    raise ValueError("UYARI: .env dosyasında 'GROQ_API_KEY' ile başlayan hiçbir API anahtarı bulunamadı!")
-print(f"Found {len(GROQ_API_KEYS)} Groq API keys.")
+# LLM Ayarları
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME_OPENROUTER") # User wants to use this model
 
-LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME")
+if not OPENROUTER_API_KEY:
+    raise ValueError("UYARI: .env dosyasında OPENROUTER_API_KEY bulunamadı!")
+if not LLM_MODEL_NAME:
+    raise ValueError("UYARI: .env dosyasında LLM_MODEL_NAME_OPENROUTER bulunamadı!")
+
+print(f"LLM Provider: OpenRouter, Model: {LLM_MODEL_NAME}")
 
 # Binance Ayarları
 BINANCE_API_KEY = os.getenv("BINANCE_TESTNET_API_KEY")
@@ -31,6 +30,13 @@ if not BINANCE_API_KEY:
 # Simülasyon Ayarları
 SIMULATION_MODE = os.getenv("SIMULATION_MODE", "True").lower() in ('true', '1', 't')
 SIMULATION_STARTING_BALANCE = float(os.getenv("SIMULATION_STARTING_BALANCE", 1000.0))
+
+# Email Ayarları
+SMTP_SERVER = os.getenv("SMTP_SERVER")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
+RECEIVER_EMAIL = os.getenv("RECEIVER_EMAIL")
 
 # Trade Strateji Ayarları
 TAKE_PROFIT_PCT = float(os.getenv("TAKE_PROFIT_PCT", 25.0)) # Yüzde olarak

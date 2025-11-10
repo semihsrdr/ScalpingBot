@@ -6,6 +6,7 @@ import config
 import json
 from datetime import datetime
 import trade_logger
+import mailer # Import the new mailer module
 
 # ÖNCE trade modülünü import et
 import trade
@@ -83,353 +84,122 @@ def check_tp_sl():
 
 
 # --- State Management ---
-
-
 cycle_count = 0
-
-
-current_api_key_index = 0
-
-
+consecutive_error_cycles = 0
+last_cycle_errors = []
 # --- End State Management ---
 
-
-
-
-
 def main_job():
-
-
     """
-
-
     Main job flow: Update PnL -> Check TP/SL -> For each symbol: Get Data -> Get Decision -> Execute
-
-
+    Also handles error counting and periodic email reporting.
     """
-
-
-    global cycle_count, current_api_key_index
-
-
-
-
+    global cycle_count, consecutive_error_cycles, last_cycle_errors
+    cycle_count += 1
+    
+    # Reset errors for the new cycle
+    cycle_errors = []
+    is_cycle_successful = False
 
     print(f"\n{'='*60}")
-
-
     print(f"--- Cycle Start: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Cycle #{cycle_count}) ---")
-
-
-    print(f"--- Using API Key Index: {current_api_key_index} ---")
-
-
+    print(f"--- Consecutive Error Cycles: {consecutive_error_cycles} ---")
     print(f"{'='*60}")
-
-
     
-
-
     # 1. Update PnL for all open positions FIRST
-
-
     if config.SIMULATION_MODE and portfolio:
-
-
         print("\n[STEP 1] Updating open positions from market...")
-
-
         portfolio.update_open_positions()
-
-
         
-
-
         # Debug: Show what's in memory after update
-
-
         print(f"[DEBUG] Positions in memory: {list(portfolio.positions.keys())}")
-
-
         print(f"[DEBUG] Balance in memory: ${portfolio.balance:.2f}")
 
-
-
-
-
     # 2. Check for TP/SL on existing positions with the updated data
-
-
     if config.SIMULATION_MODE and portfolio:
-
-
         print("\n[STEP 2] Checking TP/SL triggers...")
-
-
         check_tp_sl()
 
-
-
-
-
-    # 3. Get a fresh portfolio summary to be used by the AI
-
-
+    # 3. Get a fresh portfolio summary to be used by the AI and periodic emails
     portfolio_summary = {}
-
-
     if config.SIMULATION_MODE and portfolio:
-
-
         print("\n[STEP 3] Getting portfolio summary...")
-
-
         portfolio_summary = portfolio.get_portfolio_summary()
-
-
         print("[PF] Portfolio Summary:", json.dumps(portfolio_summary, indent=2))
 
-
-
-
-
     # 4. For each symbol, run the main trading logic
-
-
     print("\n[STEP 4] Processing trading symbols...")
-
-
     for symbol in config.TRADING_SYMBOLS:
-
-
         try:
-
-
             print(f"\n-> Processing {symbol}...")
-
-
             
-
-
             # a. Get market data and current position status
-
-
             market_summary = market.get_market_summary(symbol=symbol, interval='3m')
-
-
             if not market_summary:
-
-
-                print(f"[{symbol}] Could not get market summary, skipping.")
-
-
+                error_msg = f"[{symbol}] Could not get market summary, skipping."
+                print(error_msg)
+                cycle_errors.append(error_msg)
                 continue
-
-
             
-
-
             position_status = trade.get_current_position(symbol=symbol)
-
-
             
-
-
-            # b. Get trade decision from LLM using the currently active API key
-
-
-            active_api_key = config.GROQ_API_KEYS[current_api_key_index]
-
-
+            # b. Get trade decision from LLM
             print(f"[{symbol}] Data: {json.dumps(market_summary)}")
-
-
             print(f"[{symbol}] Current Position: {position_status[0]}")
-
-
             decision = trader.get_trade_decision(
-
-
                 market_summary=market_summary, 
-
-
                 position_status=position_status, 
-
-
-                portfolio_summary=portfolio_summary,
-
-
-                groq_api_key=active_api_key
-
-
+                portfolio_summary=portfolio_summary
             )
 
-
-
-
-
             # c. Execute the decision
-
-
             trade.parse_and_execute(decision, symbol)
-
-
             
-
-
+            # If we get here, at least one symbol was processed successfully
+            is_cycle_successful = True
+            
         except Exception as e:
-
-
-            print(f"[{symbol}] An unexpected error occurred in the main loop: {e}")
-
-
+            error_msg = f"[{symbol}] An unexpected error occurred in the main loop: {e}"
+            print(error_msg)
             import traceback
-
-
             traceback.print_exc()
-
-
+            cycle_errors.append(error_msg)
     
-
-
-        # 5. Save state to file for web UI
-
-
-    
-
-
-        if config.SIMULATION_MODE and portfolio:
-
-
-    
-
-
-            print("[STEP 5] Saving state to portfolio_state.json for web UI...")
-
-
-    
-
-
-            try:
-
-
-    
-
-
-                state_data = {
-
-
-    
-
-
-                    "portfolio_summary": portfolio.get_portfolio_summary(),
-
-
-    
-
-
-                    "open_positions": portfolio.get_all_open_positions(),
-
-
-    
-
-
-                    "equity_history": portfolio.get_equity_history()
-
-
-    
-
-
-                }
-
-
-    
-
-
-                with open('portfolio_state.json', 'w') as f:
-
-
-    
-
-
-                    json.dump(state_data, f, indent=2)
-
-
-    
-
-
-            except Exception as e:
-
-
-    
-
-
-                print(f"Error saving state to file: {e}")
-
-
-    
-
-
-    
-
-
-    
-
-
-        # 6. Increment cycle count and rotate API key if necessary
-
-
-    
-
-
-        cycle_count += 1
-
-
-    
-
-
-        if cycle_count > 0 and cycle_count % 60 == 0:
-
-
-    
-
-
-            previous_key_index = current_api_key_index
-
-
-    
-
-
-            current_api_key_index = (current_api_key_index + 1) % len(config.GROQ_API_KEYS)
-
-
-    
-
-
-            print(f"\n{'!'*20}")
-
-
-    
-
-
-            print(f"ROTATING API KEY: Switched from index {previous_key_index} to {current_api_key_index}.")
-
-
-    
-
-
-            print(f"{'!'*20}\n")
-
-
-
-
+    # 5. Save state to file for web UI
+    if config.SIMULATION_MODE and portfolio:
+        print("\n[STEP 5] Saving state to portfolio_state.json for web UI...")
+        try:
+            state_data = {
+                "portfolio_summary": portfolio.get_portfolio_summary(),
+                "open_positions": portfolio.get_all_open_positions(),
+                "equity_history": portfolio.get_equity_history()
+            }
+            with open('portfolio_state.json', 'w') as f:
+                json.dump(state_data, f, indent=2)
+        except Exception as e:
+            print(f"Error saving state to file: {e}")
+
+    # 6. Handle Error and Summary Email Logic
+    if not is_cycle_successful and len(config.TRADING_SYMBOLS) > 0:
+        consecutive_error_cycles += 1
+        print(f"\n[WORKER] Cycle failed for all symbols. Consecutive error count: {consecutive_error_cycles}")
+        last_cycle_errors = cycle_errors # Store the errors from the last failed cycle
+    else:
+        if consecutive_error_cycles > 0:
+            print(f"\n[WORKER] Cycle succeeded. Resetting consecutive error count from {consecutive_error_cycles} to 0.")
+        consecutive_error_cycles = 0
+
+    if consecutive_error_cycles >= 5:
+        print(f"\n[WORKER] Reached {consecutive_error_cycles} consecutive errors. Sending alert email...")
+        mailer.send_error_email(last_cycle_errors)
+        consecutive_error_cycles = 0 # Reset after sending to avoid spam
+
+    if cycle_count > 0 and cycle_count % 60 == 0:
+        print(f"\n[WORKER] Reached cycle {cycle_count}. Sending periodic summary email...")
+        mailer.send_summary_email(portfolio_summary)
 
     print(f"\n{'='*60}")
-
-
-    print(f"--- Cycle End: Next run in 3 minutes ---")
-
-
+    print(f"--- Cycle End: Next run in 1 minute ---")
     print(f"{'='*60}\n")
 
 
@@ -438,13 +208,13 @@ print(f"Trading Assets: {', '.join(config.TRADING_SYMBOLS)}")
 print(f"LLM Model: {config.LLM_MODEL_NAME}")
 print(f"Strategy: TP: {config.TAKE_PROFIT_PCT}% / SL: {config.STOP_LOSS_PCT}%")
 print(f"Simulation Mode: {'Active' if config.SIMULATION_MODE else 'Inactive'}")
-print(f"Run Interval: Every 3 minutes")
+print(f"Run Interval: Every 1 minute (analyzing 3m candles)")
 print("------------------------------------")
 
 print("\n[WORKER] Starting trading bot worker...")
 
 # Schedule the main job to run every 1 minute
-schedule.every(3).minutes.do(main_job)
+schedule.every(1).minutes.do(main_job)
 
 # Run the job once immediately to start
 main_job()

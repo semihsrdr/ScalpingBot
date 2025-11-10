@@ -10,6 +10,8 @@ __pycache__/
 
 # Log dosyaların (ekranda trading.log gördüm)
 *.log
+logs/
 
 simulation_state.json
 trading_log.txt
+portfolio_state.json

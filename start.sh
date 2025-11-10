@@ -1,9 +1,10 @@
 #!/bin/bash
+# This script is for LOCAL DEVELOPMENT only.
+# For deployment, Coolify will use the 'Procfile' automatically.
 
-# Gunicorn web sunucusunu arka planda başlat
-echo "Starting Gunicorn web server in the background..."
-gunicorn app:app --bind 0.0.0.0:$PORT &
+echo "Starting application for local development using honcho..."
+echo "Web server will be on http://localhost:3000"
+echo "Press Ctrl+C to stop all processes."
 
-# Worker sürecini ön planda başlat
-echo "Starting worker process in the foreground..."
-python3 -u worker.py
+# Use the .dev procfile for local execution
+honcho -f Procfile.dev start
