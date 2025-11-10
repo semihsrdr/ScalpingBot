@@ -189,7 +189,7 @@ def main_job():
             # a. Get market data and current position status
 
 
-            market_summary = market.get_market_summary(symbol=symbol)
+            market_summary = market.get_market_summary(symbol=symbol, interval='3m')
 
 
             if not market_summary:
@@ -402,7 +402,7 @@ def main_job():
     print(f"\n{'='*60}")
 
 
-    print(f"--- Cycle End: Next run in 1 minute ---")
+    print(f"--- Cycle End: Next run in 3 minutes ---")
 
 
     print(f"{'='*60}\n")
@@ -413,13 +413,13 @@ print(f"Trading Assets: {', '.join(config.TRADING_SYMBOLS)}")
 print(f"LLM Model: {config.LLM_MODEL_NAME}")
 print(f"Strategy: TP: {config.TAKE_PROFIT_PCT}% / SL: {config.STOP_LOSS_PCT}%")
 print(f"Simulation Mode: {'Active' if config.SIMULATION_MODE else 'Inactive'}")
-print(f"Run Interval: Every 1 minute")
+print(f"Run Interval: Every 3 minutes")
 print("------------------------------------")
 
 print("\n[WORKER] Starting trading bot worker...")
 
 # Schedule the main job to run every 1 minute
-schedule.every(1).minutes.do(main_job)
+schedule.every(3).minutes.do(main_job)
 
 # Run the job once immediately to start
 main_job()
