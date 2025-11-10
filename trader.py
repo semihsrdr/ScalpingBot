@@ -3,17 +3,6 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 import json
 
-try:
-    llm = ChatGroq(
-        model=config.LLM_MODEL_NAME,
-        groq_api_key=config.GROQ_API_KEY,
-        temperature=0.7
-    )
-    print("Groq LLM connection successful.")
-except Exception as e:
-    print(f"Error initializing LLM: {e}")
-    llm = None
-
 SYSTEM_PROMPT = """
 You are a disciplined and expert scalping trader. Your primary goal is to preserve capital and only trade high-probability setups. You will follow the rules below with NO exceptions.
 

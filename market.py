@@ -50,7 +50,7 @@ def get_market_summary(symbol=config.TRADING_SYMBOLS[0], interval='3m', limit=25
             "rsi_14": round(last_candle['RSI_14'], 2),
             "atr_14": round(last_candle['ATRr_14'], 4), # ATR value
             "volume": round(last_candle['volume'], 2),
-            "volume_sma_20": round(last_candle['SMA_volume_20'], 2), # Volume SMA
+            "volume_sma_20": round(last_candle['SMA_20'], 2), # Volume SMA
             "market_trend": trend
         }
         
