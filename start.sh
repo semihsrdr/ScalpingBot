@@ -6,4 +6,4 @@ gunicorn app:app --bind 0.0.0.0:$PORT &
 
 # Worker sürecini ön planda başlat
 echo "Starting worker process in the foreground..."
-python worker.py
+python3 -u worker.py
